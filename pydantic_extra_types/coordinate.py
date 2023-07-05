@@ -15,7 +15,7 @@ class Latitude(float):
     max: ClassVar[float] = 90.00
 
     @classmethod
-    def __get_pydantic_core_schema__(cls, source: type[Any], handler: GetCoreSchemaHandler) -> core_schema.CoreSchema:
+    def __get_pydantic_core_schema__(cls, source: Type[Any], handler: GetCoreSchemaHandler) -> core_schema.CoreSchema:
         return core_schema.float_schema(ge=cls.min, le=cls.max)
 
 
@@ -24,7 +24,7 @@ class Longitude(float):
     max: ClassVar[float] = 180.00
 
     @classmethod
-    def __get_pydantic_core_schema__(cls, source: type[Any], handler: GetCoreSchemaHandler) -> core_schema.CoreSchema:
+    def __get_pydantic_core_schema__(cls, source: Type[Any], handler: GetCoreSchemaHandler) -> core_schema.CoreSchema:
         return core_schema.float_schema(ge=cls.min, le=cls.max)
 
 
@@ -41,20 +41,20 @@ class Coordinate(_repr.Representation):
     def __get_pydantic_json_schema__(
         cls, core_schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
     ) -> JsonSchemaValue:
-        field_schema: dict[str, Any] = handler(core_schema)
+        field_schema: Dict[str, Any] = handler(core_schema)
         field_schema.update(format='coordinate')
         return field_schema
 
     @classmethod
     def __get_pydantic_core_schema__(
-        cls, source: type[Any], handler: Callable[[Any], CoreSchema]
+        cls, source: Type[Any], handler: Callable[[Any], CoreSchema]
     ) -> core_schema.CoreSchema:
         return core_schema.general_before_validator_function(
             cls._validate, handler(source), serialization=core_schema.to_string_ser_schema()
         )
 
     @classmethod
-    def _validate(cls, value: Any, _: Any) -> dict[str, Any]:
+    def _validate(cls, value: Any, _: Any) -> Dict[str, Any]:
         if isinstance(value, ArgsKwargs):
             _validated_tuple = cls._validate_as_tuple(*value.args, **(value.kwargs or {}))
         else:
@@ -62,7 +62,7 @@ class Coordinate(_repr.Representation):
         return {'latitude': _validated_tuple[0], 'longitude': _validated_tuple[1]}
 
     @classmethod
-    def _validate_as_tuple(cls, *args: Any, **kwargs: Any) -> CoordinateTuple | tuple[float, float]:
+    def _validate_as_tuple(cls, *args: Any, **kwargs: Any) -> CoordinateTuple | Tuple[float, float]:
         if kwargs:
             if kwargs.keys() != {'latitude', 'longitude'}:
                 raise PydanticCustomError(
@@ -138,7 +138,7 @@ class Coordinate(_repr.Representation):
         return _lat, _long
 
     @staticmethod
-    def parse_tuple(value: tuple[Any, ...]) -> CoordinateTuple:
+    def parse_tuple(value: Tuple[Any, ...]) -> CoordinateTuple:
         """
         Parse a tuple representing a coordinate to a Coordinate tuple.
 
