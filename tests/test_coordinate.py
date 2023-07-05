@@ -2,7 +2,6 @@ from typing import Any
 
 import pytest
 from pydantic import BaseModel, ValidationError
-from pydantic_core import PydanticCustomError
 
 from pydantic_extra_types.coordinate import Coordinate, Latitude, Longitude
 
@@ -45,7 +44,7 @@ def test_format_for_coordinate(coord: (Any, Any), result: (float, float), valid:
         assert _coord.latitude == result[0]
         assert _coord.longitude == result[1]
     else:
-        with pytest.raises(PydanticCustomError, match='value is not a valid'):
+        with pytest.raises(ValidationError, match='1 validation error for Coordinate'):
             Coordinate(coord)
 
 
@@ -66,7 +65,7 @@ def test_limit_for_coordinate(coord: (Any, Any), valid: bool):
         assert _coord.latitude == coord[0]
         assert _coord.longitude == coord[1]
     else:
-        with pytest.raises(PydanticCustomError, match='value is not a valid'):
+        with pytest.raises(ValidationError, match='1 validation error for Coordinate'):
             Coordinate(coord)
 
 
@@ -125,7 +124,7 @@ def test_format_longitude(longitude: float, valid: bool):
 def test_str_repr():
     assert str(Coordinate('20.0,10.0')) == '20.0,10.0'
     assert str(Coordinate((20.0, 10.0))) == '20.0,10.0'
-    assert repr(Coordinate((20.0, 10.0))) == 'Coordinate(_latitude=20.0, _longitude=10.0)'
+    assert repr(Coordinate((20.0, 10.0))) == 'Coordinate(latitude=20.0, longitude=10.0)'
 
 
 def test_eq():
