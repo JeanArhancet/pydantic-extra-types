@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Callable, ClassVar, Tuple, Union
+from typing import Any, ClassVar, Union
 
 from pydantic import GetCoreSchemaHandler, GetJsonSchemaHandler, dataclasses
 from pydantic._internal import _repr
 from pydantic.json_schema import JsonSchemaValue
-from pydantic_core import ArgsKwargs, CoreSchema, PydanticCustomError, core_schema
+from pydantic_core import ArgsKwargs, PydanticCustomError, core_schema
+from typing_extensions import Self
 
 CoordinateValueType = Union[str, int, float]
 
@@ -28,12 +29,10 @@ class Longitude(float):
         return core_schema.float_schema(ge=cls.min, le=cls.max)
 
 
-CoordinateTuple = Tuple[Latitude, Longitude]
-CoordinateType = Union[CoordinateTuple, str, 'Coordinate']
-
-
 @dataclasses.dataclass
 class Coordinate(_repr.Representation):
+    _NULL_ISLAND: ClassVar[tuple[float, float]] = 0.0, 0.0
+
     latitude: Latitude
     longitude: Longitude
 
@@ -46,54 +45,64 @@ class Coordinate(_repr.Representation):
         return field_schema
 
     @classmethod
-    def __get_pydantic_core_schema__(
-        cls, source: type[Any], handler: Callable[[Any], CoreSchema]
-    ) -> core_schema.CoreSchema:
-        return core_schema.general_before_validator_function(
-            cls._validate, handler(source), serialization=core_schema.to_string_ser_schema()
+    def __get_pydantic_core_schema__(cls, source: type[Any], handler: GetCoreSchemaHandler) -> core_schema.CoreSchema:
+        float_schema = core_schema.float_schema()
+        result = core_schema.no_info_before_validator_function(
+            cls._parse_args,
+            core_schema.union_schema(
+                [
+                    core_schema.no_info_after_validator_function(cls._debug_handler, handler(source)),
+                    core_schema.no_info_after_validator_function(
+                        cls._parse_tuple,
+                        core_schema.tuple_positional_schema([float_schema, float_schema]),
+                    ),
+                    core_schema.no_info_after_validator_function(cls._parse_str, core_schema.str_schema()),
+                ]
+            ),
         )
+        print('schema', result)
+        return result
 
     @classmethod
-    def _validate(cls, value: Any, _: Any) -> dict[str, Any]:
-        if isinstance(value, ArgsKwargs):
-            _validated_tuple = cls._validate_as_tuple(*value.args, **(value.kwargs or {}))
-        else:
-            _validated_tuple = cls._validate_as_tuple(value)
-        return {'latitude': _validated_tuple[0], 'longitude': _validated_tuple[1]}
+    def _debug_handler(cls, value: Any) -> Any:
+        print('handler', value)
+        return value
 
     @classmethod
-    def _validate_as_tuple(cls, *args: Any, **kwargs: Any) -> CoordinateTuple | tuple[float, float]:
+    def _parse_args(cls, value: Any) -> Any:
+        print('maybe args', value)
+        if not isinstance(value, ArgsKwargs):
+            return value
+
+        args, kwargs = value.args, value.kwargs
+
         if kwargs:
-            if kwargs.keys() != {'latitude', 'longitude'}:
-                raise PydanticCustomError(
-                    'coordinate_error', 'Coordinate constructor accepts only "latitude" and "longitude" kwargs'
-                )
-            return kwargs['latitude'], kwargs['longitude']
-
+            print('kwargs', {k: (v, type(v)) for k, v in kwargs.items()})
+            return kwargs
         if not args:
-            return 0.0, 0.0
+            return cls._NULL_ISLAND
+        if len(args) == 1:
+            print('args[0]', args[0], type(args[0]))
+            return args[0]
+        print('args', args)
+        return args
 
-        if len(args) > 2:
+    @classmethod
+    def _parse_tuple(cls, value: tuple[float, float]) -> Self:
+        print('tup', value)
+        return cls(latitude=value[0], longitude=value[1])  # type: ignore
+
+    @classmethod
+    def _parse_str(cls, value: str) -> Self:
+        print('str', value)
+        try:
+            _coords = [float(x) for x in value.split(',')]
+        except ValueError:
             raise PydanticCustomError(
-                'coordinate_error', "Coordinate doesn't accept more than two positional arguments"
+                'coordinate_error', 'value is not a valid coordinate: string is not recognized as a valid coordinate'
             )
 
-        if len(args) == 2:
-            arg = (args[0], args[1])
-        else:
-            arg = args[0]
-
-        if isinstance(arg, (tuple, list)):
-            return cls.parse_tuple(arg)
-        if isinstance(arg, str):
-            return cls.parse_str(arg)
-        if isinstance(arg, Coordinate):
-            return arg.latitude, arg.longitude
-
-        raise PydanticCustomError(
-            'coordinate_error',
-            'value is not a valid Coordinate: value must be a tuple, list or string',
-        )
+        return cls(*_coords)  # type: ignore
 
     def __str__(self) -> str:
         return f'{self.latitude},{self.longitude}'
@@ -103,57 +112,3 @@ class Coordinate(_repr.Representation):
 
     def __hash__(self) -> int:
         return hash((self.latitude, self.longitude))
-
-    @staticmethod
-    def parse_str(value: str) -> CoordinateTuple:
-        """
-        Parse a string representing a coordinate to a Coordinate tuple.
-
-        Possible formats for the input string include:
-        - <latitude>, <longitude>
-
-        Args:
-            value (str): The string representation of the coordinate.
-
-        Returns:
-            CoordinateTuple: A tuple containing the latitude and longitude values.
-
-        Raises:
-            PydanticCustomError: If the input string is not a valid coordinate.
-        """
-        try:
-            _coord = [float(x) for x in value.split(',')]
-            if len(_coord) != 2:
-                raise PydanticCustomError(
-                    'coordinate_error', 'value is not a valid coordinate: string not recognised as a valid coordinate'
-                )
-        except ValueError:
-            raise PydanticCustomError(
-                'coordinate_error', 'value is not a valid coordinate: string not recognised as a valid coordinate'
-            )
-
-        _lat = Latitude(_coord[0])
-        _long = Longitude(_coord[1])
-
-        return _lat, _long
-
-    @staticmethod
-    def parse_tuple(value: tuple[Any, ...]) -> CoordinateTuple:
-        """
-        Parse a tuple representing a coordinate to a Coordinate tuple.
-
-        Args:
-            value (Tuple[Any, ...]): The tuple representation of the coordinate.
-
-        Returns:
-            CoordinateTuple: A tuple containing the latitude and longitude values.
-
-        Raises:
-            PydanticCustomError: If the input tuple is not a valid coordinate.
-        """
-        if len(value) == 2:
-            _lat = Latitude(value[0])
-            _long = Longitude(value[1])
-            return _lat, _long
-        else:
-            raise PydanticCustomError('coordinate_error', 'value is not a valid coordinate: tuples must have length 2')
