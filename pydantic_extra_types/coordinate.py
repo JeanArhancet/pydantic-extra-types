@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, ClassVar, Union
+from typing import Any, ClassVar, Tuple, Union
 
 from pydantic import GetCoreSchemaHandler, GetJsonSchemaHandler, dataclasses
 from pydantic._internal import _repr
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import ArgsKwargs, PydanticCustomError, core_schema
-from typing_extensions import Self
 
 CoordinateValueType = Union[str, int, float]
 
@@ -46,63 +45,49 @@ class Coordinate(_repr.Representation):
 
     @classmethod
     def __get_pydantic_core_schema__(cls, source: type[Any], handler: GetCoreSchemaHandler) -> core_schema.CoreSchema:
-        float_schema = core_schema.float_schema()
-        result = core_schema.no_info_before_validator_function(
+        return core_schema.no_info_wrap_validator_function(
             cls._parse_args,
-            core_schema.union_schema(
-                [
-                    core_schema.no_info_after_validator_function(cls._debug_handler, handler(source)),
-                    core_schema.no_info_after_validator_function(
-                        cls._parse_tuple,
-                        core_schema.tuple_positional_schema([float_schema, float_schema]),
-                    ),
-                    core_schema.no_info_after_validator_function(cls._parse_str, core_schema.str_schema()),
-                ]
+            core_schema.no_info_wrap_validator_function(
+                cls._parse_str,
+                core_schema.chain_schema(
+                    [
+                        core_schema.no_info_wrap_validator_function(
+                            cls._parse_tuple, handler.generate_schema(Tuple[float, float])
+                        ),
+                        handler(source),
+                    ]
+                ),
             ),
         )
-        print('schema', result)
-        return result
 
     @classmethod
-    def _debug_handler(cls, value: Any) -> Any:
-        print('handler', value)
+    def _parse_args(cls, value: Any, handler) -> Any:
+        if isinstance(value, ArgsKwargs) and not value.kwargs:
+            n_args = len(value.args)
+            if n_args == 0:
+                value = cls._NULL_ISLAND
+            elif n_args == 1:
+                value = value.args[0]
+        return handler(value)
+
+    @classmethod
+    def _parse_str(cls, value: Any, handler) -> Any:
+        if isinstance(value, str):
+            try:
+                value = tuple(float(x) for x in value.split(','))
+            except ValueError:
+                raise PydanticCustomError(
+                    'coordinate_error',
+                    'value is not a valid coordinate: string is not recognized as a valid coordinate',
+                )
+        return handler(value)
+
+    @classmethod
+    def _parse_tuple(cls, value: Any, handler) -> Any:
+        if isinstance(value, tuple):
+            result = handler(value)
+            return ArgsKwargs(args=result)
         return value
-
-    @classmethod
-    def _parse_args(cls, value: Any) -> Any:
-        print('maybe args', value)
-        if not isinstance(value, ArgsKwargs):
-            return value
-
-        args, kwargs = value.args, value.kwargs
-
-        if kwargs:
-            print('kwargs', {k: (v, type(v)) for k, v in kwargs.items()})
-            return kwargs
-        if not args:
-            return cls._NULL_ISLAND
-        if len(args) == 1:
-            print('args[0]', args[0], type(args[0]))
-            return args[0]
-        print('args', args)
-        return args
-
-    @classmethod
-    def _parse_tuple(cls, value: tuple[float, float]) -> Self:
-        print('tup', value)
-        return cls(latitude=value[0], longitude=value[1])  # type: ignore
-
-    @classmethod
-    def _parse_str(cls, value: str) -> Self:
-        print('str', value)
-        try:
-            _coords = [float(x) for x in value.split(',')]
-        except ValueError:
-            raise PydanticCustomError(
-                'coordinate_error', 'value is not a valid coordinate: string is not recognized as a valid coordinate'
-            )
-
-        return cls(*_coords)  # type: ignore
 
     def __str__(self) -> str:
         return f'{self.latitude},{self.longitude}'

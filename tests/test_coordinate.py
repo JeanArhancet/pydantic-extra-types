@@ -23,20 +23,20 @@ class Lng(BaseModel):
     'coord, result, error',
     [
         # Valid coordinates
-        # ((20.0, 10.0), (20.0, 10.0), None),
-        # ((-90.0, 0.0), (-90.0, 0.0), None),
-        # (('20.0', 10.0), (20.0, 10.0), None),
-        # ((20.0, '10.0'), (20.0, 10.0), None),
+        ((20.0, 10.0), (20.0, 10.0), None),
+        ((-90.0, 0.0), (-90.0, 0.0), None),
+        (('20.0', 10.0), (20.0, 10.0), None),
+        ((20.0, '10.0'), (20.0, 10.0), None),
         ((45.678, -123.456), (45.678, -123.456), None),
         (('45.678, -123.456'), (45.678, -123.456), None),
-        # (Coordinate((20.0, 10.0)), (20.0, 10.0), None),
+        (Coordinate((20.0, 10.0)), (20.0, 10.0), None),
         # # Invalid coordinates
-        # ((), None, 'Field required'),  # Empty tuple
-        # ((10.0,), None, 'Field required'),  # Tuple with only one value
-        # (('ten, '), None, 'string is not recognized as a valid coordinate'),
-        # ((20.0, 10.0, 30.0), None, 'Tuple should have at most 2 items'),  # Tuple with more than 2 values
-        # ('20.0, 10.0, 30.0', None, 'Tuple should have at most 2 items'),  # Str with more than 2 values
-        # (2, None, 'Input should be a dictionary or an instance of Coordinate'),  # Wrong type
+        ((), None, 'Field required'),  # Empty tuple
+        ((10.0,), None, 'Field required'),  # Tuple with only one value
+        (('ten, '), None, 'string is not recognized as a valid coordinate'),
+        ((20.0, 10.0, 30.0), None, 'Tuple should have at most 2 items'),  # Tuple with more than 2 values
+        ('20.0, 10.0, 30.0', None, 'Tuple should have at most 2 items'),  # Str with more than 2 values
+        (2, None, 'Input should be a dictionary or an instance of Coordinate'),  # Wrong type
     ],
 )
 def test_format_for_coordinate(coord: (Any, Any), result: (float, float), error: Optional[Pattern]):
