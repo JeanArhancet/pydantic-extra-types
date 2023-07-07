@@ -35,7 +35,7 @@ class Lng(BaseModel):
         ((10.0,), None, 'Field required'),  # Tuple with only one value
         (('ten, '), None, 'string is not recognized as a valid coordinate'),
         ((20.0, 10.0, 30.0), None, 'Tuple should have at most 2 items'),  # Tuple with more than 2 values
-        ('20.0, 10.0, 30.0', None, 'Tuple should have at most 2 items'),  # Str with more than 2 values
+        ('20.0, 10.0, 30.0', None, 'Unexpected positional argument'),  # Str with more than 2 values
         (2, None, 'Input should be a dictionary or an instance of Coordinate'),  # Wrong type
     ],
 )
@@ -137,3 +137,48 @@ def test_eq():
 def test_color_hashable():
     assert hash(Coordinate((20.0, 10.0))) == hash(Coordinate((20.0, 10.0)))
     assert hash(Coordinate((20.0, 11.0))) != hash(Coordinate((20.0, 10.0)))
+
+
+def test_json_schema():
+    class Model(BaseModel):
+        value: Coordinate
+
+    assert Model.model_json_schema(mode='validation')['$defs']['Coordinate'] == {
+        'properties': {
+            'latitude': {'maximum': 90.0, 'minimum': -90.0, 'title': 'Latitude', 'type': 'number'},
+            'longitude': {'maximum': 180.0, 'minimum': -180.0, 'title': 'Longitude', 'type': 'number'},
+        },
+        'required': ['latitude', 'longitude'],
+        'title': 'Coordinate',
+        'type': 'object',
+    }
+    assert Model.model_json_schema(mode='validation')['properties']['value'] == {
+        'anyOf': [
+            {'$ref': '#/$defs/Coordinate'},
+            {
+                'maxItems': 2,
+                'minItems': 2,
+                'prefixItems': [{'type': 'number'}, {'type': 'number'}],
+                'type': 'array',
+            },
+            {'type': 'string'},
+        ],
+        'title': 'Value',
+    }
+    assert Model.model_json_schema(mode='serialization') == {
+        '$defs': {
+            'Coordinate': {
+                'properties': {
+                    'latitude': {'maximum': 90.0, 'minimum': -90.0, 'title': 'Latitude', 'type': 'number'},
+                    'longitude': {'maximum': 180.0, 'minimum': -180.0, 'title': 'Longitude', 'type': 'number'},
+                },
+                'required': ['latitude', 'longitude'],
+                'title': 'Coordinate',
+                'type': 'object',
+            }
+        },
+        'properties': {'value': {'allOf': [{'$ref': '#/$defs/Coordinate'}], 'title': 'Value'}},
+        'required': ['value'],
+        'title': 'Model',
+        'type': 'object',
+    }

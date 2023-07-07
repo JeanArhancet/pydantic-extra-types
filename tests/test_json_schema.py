@@ -147,7 +147,24 @@ from pydantic_extra_types.payment import PaymentCardNumber
                         'type': 'object',
                     }
                 },
-                'properties': {'x': {'allOf': [{'$ref': '#/$defs/Coordinate'}], 'format': 'coordinate'}},
+                'properties': {
+                    'x': {
+                        'anyOf': [
+                            {'$ref': '#/$defs/Coordinate'},
+                            {
+                                'maxItems': 2,
+                                'minItems': 2,
+                                'prefixItems': [
+                                    {'type': 'number'},
+                                    {'type': 'number'},
+                                ],
+                                'type': 'array',
+                            },
+                            {'type': 'string'},
+                        ],
+                        'title': 'X',
+                    },
+                },
                 'required': ['x'],
                 'title': 'Model',
                 'type': 'object',
